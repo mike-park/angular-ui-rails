@@ -1,6 +1,6 @@
 /**
  * AngularUI - The companion suite for AngularJS
- * @version v0.3.1 - 2012-12-02
+ * @version v0.3.2 - 2013-01-16
  * @link http://angular-ui.github.com
  * @license MIT License, http://www.opensource.org/licenses/MIT
  */
@@ -48,55 +48,53 @@ angular.module('ui.directives').directive('uiAnimate', ['ui.config', '$timeout',
 }]);
 
 
-    /*
-*  Implementation of JQuery FullCalendar 
+/*
+*  AngularJs Fullcalendar Wrapper for the JQuery FullCalendar
 *  inspired by http://arshaw.com/fullcalendar/ 
 *  
 *  Basic Angular Calendar Directive that takes in live events as the ng-model and watches that event array for changes, to update the view accordingly. 
-*  
-* Authors
-*  @andyjoslin
-*  @joshkurz
+*  Can also take in an event url as a source object(s) and feed the events per view. 
+*
 */
 
 angular.module('ui.directives').directive('uiCalendar',['ui.config', '$parse', function (uiConfig,$parse) {
-
-    uiConfig.uiCalendar = uiConfig.uiCalendar || {};    
-    //returns the calendar     
+    uiConfig.uiCalendar = uiConfig.uiCalendar || {};       
+    //returns the fullcalendar     
     return {
         require: 'ngModel',
         restrict: 'A',
         scope: {
-          eventChanged: "=changed",
           events: "=ngModel"
         },
         link: function(scope, elm, $attrs) {
             var ngModel = $parse($attrs.ngModel);
             //update method that is called on load and whenever the events array is changed. 
             function update() {
-            //Default View Options
-            var expression,
-              options = {
-                header: {
-                left: 'prev,next today',
-                center: 'title',
-                right: 'month,agendaWeek,agendaDay'
+              //Default View Options
+              var expression,
+                options = {
+                  header: {
+                  left: 'prev,next today',
+                  center: 'title',
+                  right: 'month,agendaWeek,agendaDay'
+                },
+              // add event name to title attribute on mouseover. 
+              eventMouseover: function(event, jsEvent, view) {
+              if (view.name !== 'agendaDay') {
+                $(jsEvent.target).attr('title', event.title);
+               }
               },
-            // add event name to title attribute on mouseover. Would be nice if this was an angular popover. 
-            eventMouseover: function(event, jsEvent, view) {
-            if (view.name !== 'agendaDay') {
-              $(jsEvent.target).attr('title', event.title);
-             }
-            },
-        
-            // Calling the events from the scope through the ng-model binding attribute. 
-            events: ngModel(scope)
-            };          
-            //if attrs have been entered to directive, then create a relative expression. 
-            if ($attrs.uiCalendar)
-              expression = scope.$eval($attrs.uiCalendar);
-            else 
-              expression = {};
+          
+              // Calling the events from the scope through the ng-model binding attribute. 
+              events: scope.events
+              };          
+              //if attrs have been entered to the directive, then create a relative expression. 
+              if ($attrs.uiCalendar){
+                 expression = scope.$eval($attrs.uiCalendar);
+              }
+              else{
+                expression = {};
+              } 
               //extend the options to suite the custom directive.
               angular.extend(options, uiConfig.uiCalendar, expression);
               //call fullCalendar from an empty html tag, to keep angular happy.
@@ -104,94 +102,85 @@ angular.module('ui.directives').directive('uiCalendar',['ui.config', '$parse', f
             }
             //on load update call.
             update();
-            //watch for changes to the eventChanged object passed into the directive, and update if changed. 
-            scope.$watch(function() {
-                return scope.eventChanged;
-            }, function() {
-                update();
-            },true);
+            //watching the length of the array to create a more efficient update process. 
+            scope.$watch( 'events.length', function( newVal, oldVal )
+            {
+              //update the calendar on every change to events.length
+              update();
+            }, true );
         }
     };
 }]);
-
 /*global angular, CodeMirror, Error*/
 /**
  * Binds a CodeMirror widget to a <textarea> element.
  */
-angular.module('ui.directives').directive('uiCodemirror', ['ui.config', '$parse', function (uiConfig, $parse) {
+angular.module('ui.directives').directive('uiCodemirror', ['ui.config', '$timeout', function (uiConfig, $timeout) {
   'use strict';
 
-  uiConfig.codemirror = uiConfig.codemirror || {};
+  var events = ["cursorActivity", "viewportChange", "gutterClick", "focus", "blur", "scroll", "update"];
   return {
-    require: 'ngModel',
-    link: function (scope, elm, attrs, ngModel) {
-      // Only works on textareas
-      if (!elm.is('textarea')) {
-        throw new Error('ui-codemirror can only be applied to a textarea element');
+    restrict:'A',
+    require:'ngModel',
+    link:function (scope, elm, attrs, ngModel) {
+      var options, opts, onChange, deferCodeMirror, codeMirror;
+
+      if (elm[0].type !== 'textarea') {
+        throw new Error('uiCodemirror3 can only be applied to a textarea element');
       }
 
-      var codemirror;
-      // This is the method that we use to get the value of the ui-codemirror attribute expression.
-      var uiCodemirrorGet = $parse(attrs.uiCodemirror);
-      // This method will be called whenever the code mirror widget content changes
-      var onChangeHandler = function (ed) {
-        // We only update the model if the value has changed - this helps get around a little problem where $render triggers a change despite already being inside a $apply loop.
-        var newValue = ed.getValue();
-        if (newValue !== ngModel.$viewValue) {
-          ngModel.$setViewValue(newValue);
-          scope.$apply();
-        }
-      };
-      // Create and wire up a new code mirror widget (unwiring a previous one if necessary)
-      var updateCodeMirror = function (options) {
-        // Merge together the options from the uiConfig and the attribute itself with the onChange event above.
-        options = angular.extend({}, options, uiConfig.codemirror);
+      options = uiConfig.codemirror || {};
+      opts = angular.extend({}, options, scope.$eval(attrs.uiCodemirror));
 
-        // We actually want to run both handlers if the user has provided their own onChange handler.
-        var userOnChange = options.onChange;
-        if (userOnChange) {
-          options.onChange = function (ed) {
-            onChangeHandler(ed);
-            userOnChange(ed);
-          };
-        } else {
-          options.onChange = onChangeHandler;
-        }
-
-        // If there is a codemirror widget for this element already then we need to unwire if first
-        if (codemirror) {
-          codemirror.toTextArea();
-        }
-        // Create the new codemirror widget
-        codemirror = CodeMirror.fromTextArea(elm[0], options);
+      onChange = function (aEvent) {
+        return function (instance, changeObj) {
+          var newValue = instance.getValue();
+          if (newValue !== ngModel.$viewValue) {
+            ngModel.$setViewValue(newValue);
+            scope.$apply();
+          }
+          if (typeof aEvent === "function")
+            aEvent(instance, changeObj);
+        };
       };
 
-      // Initialize the code mirror widget
-      updateCodeMirror(uiCodemirrorGet());
+      deferCodeMirror = function () {
+        codeMirror = CodeMirror.fromTextArea(elm[0], opts);
+        codeMirror.on("change", onChange(opts.onChange));
 
-      // Now watch to see if the codemirror attribute gets updated
-      scope.$watch(uiCodemirrorGet, updateCodeMirror, true);
-
-      // CodeMirror expects a string, so make sure it gets one.
-      // This does not change the model.
-      ngModel.$formatters.push(function (value) {
-        if (angular.isUndefined(value) || value === null) {
-          return '';
+        for (var i = 0, n = events.length, aEvent; i < n; ++i) {
+          aEvent = opts["on" + events[i].charAt(0).toUpperCase() + events[i].slice(1)];
+          if (aEvent === void 0) continue;
+          if (typeof aEvent !== "function") continue;
+          codeMirror.on(events[i], aEvent);
         }
-        else if (angular.isObject(value) || angular.isArray(value)) {
-          throw new Error('ui-codemirror cannot use an object or an array as a model');
-        }
-        return value;
-      });
 
-      // Override the ngModelController $render method, which is what gets called when the model is updated.
-      // This takes care of the synchronizing the codeMirror element with the underlying model, in the case that it is changed by something else.
-      ngModel.$render = function () {
-        codemirror.setValue(ngModel.$viewValue);
+        // CodeMirror expects a string, so make sure it gets one.
+        // This does not change the model.
+        ngModel.$formatters.push(function (value) {
+          if (angular.isUndefined(value) || value === null) {
+            return '';
+          }
+          else if (angular.isObject(value) || angular.isArray(value)) {
+            throw new Error('ui-codemirror cannot use an object or an array as a model');
+          }
+          return value;
+        });
+
+        // Override the ngModelController $render method, which is what gets called when the model is updated.
+        // This takes care of the synchronizing the codeMirror element with the underlying model, in the case that it is changed by something else.
+        ngModel.$render = function () {
+          codeMirror.setValue(ngModel.$viewValue);
+        };
+
       };
+
+      $timeout(deferCodeMirror);
+
     }
   };
 }]);
+
 /*
  Gives the ability to style currency based on its sign.
  */
@@ -282,6 +271,7 @@ angular.module('ui.directives')
               var date = element.datepicker("getDate");
               element.datepicker("setDate", element.val());
               controller.$setViewValue(date);
+              element.blur();
             });
           };
           if (opts.onSelect) {
@@ -289,7 +279,9 @@ angular.module('ui.directives')
             var userHandler = opts.onSelect;
             opts.onSelect = function (value, picker) {
               updateModel();
-              return userHandler(value, picker);
+              scope.$apply(function() {
+                userHandler(value, picker);
+              });
             };
           } else {
             // No onSelect already specified so just update the model
@@ -311,8 +303,10 @@ angular.module('ui.directives')
         element.datepicker('destroy');
         // Create the new datepicker widget
         element.datepicker(opts);
-        // Force a render to override whatever is in the input text box
-        controller.$render();
+        if ( controller ) {
+          // Force a render to override whatever is in the input text box
+          controller.$render();
+        }
       };
       // Watch for changes to the directives options
       scope.$watch(getOptions, initDateWidget, true);
@@ -454,7 +448,7 @@ angular.module('ui.directives').directive('uiJq', ['ui.config', function (uiConf
         if (attrs.uiOptions) {
           linkOptions = scope.$eval('[' + attrs.uiOptions + ']');
           if (angular.isObject(options) && angular.isObject(linkOptions[0])) {
-            linkOptions[0] = angular.extend(options, linkOptions[0]);
+            linkOptions[0] = angular.extend({}, options, linkOptions[0]);
           }
         } else if (options) {
           linkOptions = [options];
@@ -870,7 +864,7 @@ angular.module('ui.directives').directive('uiSelect2', ['ui.config', '$http', fu
         repeatOption = tElm.find('option[ng-repeat], option[data-ng-repeat]');
 
         if (repeatOption.length) {
-      repeatAttr = repeatOption.attr('ng-repeat') || repeatOption.attr('data-ng-repeat');
+          repeatAttr = repeatOption.attr('ng-repeat') || repeatOption.attr('data-ng-repeat');
           watch = jQuery.trim(repeatAttr.split('|')[0]).split(' ').pop();
         }
       }
@@ -895,8 +889,10 @@ angular.module('ui.directives').directive('uiSelect2', ['ui.config', '$http', fu
             } else {
               if (isMultiple && !controller.$modelValue) {
                 elm.select2('data', []);
-              } else {
+              } else if (angular.isObject(controller.$modelValue)) {
                 elm.select2('data', controller.$modelValue);
+              } else {
+                elm.select2('val', controller.$modelValue);
               }
             }
           };
@@ -939,9 +935,11 @@ angular.module('ui.directives').directive('uiSelect2', ['ui.config', '$http', fu
           elm.select2(value && 'disable' || 'enable');
         });
 
-        scope.$watch(attrs.ngMultiple, function(newVal) {
-          elm.select2(opts);
-        });
+        if (attrs.ngMultiple) {
+          scope.$watch(attrs.ngMultiple, function(newVal) {
+            elm.select2(opts);
+          });
+        }
 
         // Set initial value since Angular doesn't
         elm.val(scope.$eval(attrs.ngModel));
