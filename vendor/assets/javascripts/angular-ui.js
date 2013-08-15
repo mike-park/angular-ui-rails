@@ -1247,8 +1247,8 @@ angular.module('ui.directives').directive('uiTinymce', ['ui.config', function (u
           mode: 'exact',
           elements: attrs.id
         };
-        // extend options with initial uiTinymceConfig and options from directive attribute value
-        angular.extend(options, uiTinymceConfig, expression);
+        // extend options with initial uiConfig.tinymce and options from directive attribute value
+        angular.extend(options, uiConfig.tinymce, expression);
         setTimeout(function () {
           tinymce.init(options);
         });
