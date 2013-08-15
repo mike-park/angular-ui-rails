@@ -1196,7 +1196,7 @@ angular.module('ui.directives').directive('uiSortable', [
  */
 angular.module('ui.directives').directive('uiTinymce', ['ui.config', function (uiConfig) {
   uiConfig.tinymce = uiConfig.tinymce || {};
-  var generateIds = 0;
+  var generatedIds = 0;
   return {
       require: 'ngModel',
       link: function (scope, elm, attrs, ngModel) {
