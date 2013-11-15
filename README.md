@@ -1,6 +1,8 @@
-# angular-ui-rails
+# angular-ui-rails (deprecated)
 
-angular-ui-rails wraps the [Angular.js UI](http://angular-ui.github.com/) library for use in Rails 3.1 and above. Assets will minify automatically during production.
+The current [Angular.js UI](http://angular-ui.github.io/) project has split into multiple smaller projects. There is no longer a single UI source. This gem has not been updated to merge the 7+ components.
+
+angular-ui-rails wraps the old [Angular.js UI v0.4](https://github.com/angular-ui/angular-ui-OLDREPO/) library for use in Rails 3.1 and above. Assets will minify automatically during production.
 
 ## Usage
 
